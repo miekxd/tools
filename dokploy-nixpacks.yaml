@@ -1,9 +1,15 @@
 version: '3.8'
 services:
   app:
+    image: nixpacks/nixpacks:latest
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile_inline: |
+        FROM nixpacks/nixpacks:latest
+        WORKDIR /app
+        COPY . .
+        RUN nixpacks build
+        CMD nixpacks start
     ports:
       - "3000:3000"
     environment:

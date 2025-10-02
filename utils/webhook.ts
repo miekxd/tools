@@ -12,20 +12,22 @@ export async function executeWebhook(
       ...formData
     };
 
-    // Add file metadata if files are present
+    // Add file content if files are present
     if (fileData) {
-      const fileMetadata: {[key: string]: any} = {};
+      const fileContent: {[key: string]: any} = {};
       Object.entries(fileData).forEach(([key, file]) => {
         if (file) {
-          fileMetadata[`${key}Metadata`] = {
+          // Read file content as text
+          fileContent[key] = {
             fileName: file.name,
             fileSize: file.size,
             fileType: file.type,
-            lastModified: file.lastModified
+            lastModified: file.lastModified,
+            content: formData[key] || '' // Use the extracted text content from formData
           };
         }
       });
-      Object.assign(payload, fileMetadata);
+      Object.assign(payload, fileContent);
     }
 
     const response = await fetch(tool.webhookUrl, {
