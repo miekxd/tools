@@ -1,7 +1,7 @@
 'use client';
 
 import { Tool, FormData, WebhookResult } from '@/types/tools';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 interface WebhookToolDetailsProps {
   tool: Tool;
@@ -74,7 +74,8 @@ export default function WebhookToolDetails({
       return;
     }
 
-    const error = validateFile(file, tool.parameters.find(p => p.name === paramName));
+    const param = tool.parameters.find(p => p.name === paramName);
+    const error = validateFile(file, param);
     if (error) {
       setFileErrors(prev => ({ ...prev, [paramName]: error }));
       return;
@@ -97,12 +98,14 @@ export default function WebhookToolDetails({
 
   const validateForm = () => {
     const requiredFields = tool.parameters.filter(param => param.required);
+    
     const isValid = requiredFields.every(param => {
       if (param.type === 'file') {
         return fileData[param.name] && !fileErrors[param.name];
       }
       return formData[param.name] && formData[param.name].trim() !== '';
     });
+    
     setIsFormValid(isValid);
   };
 
@@ -111,6 +114,11 @@ export default function WebhookToolDetails({
     // Validate form after a short delay to allow state to update
     setTimeout(validateForm, 100);
   };
+
+  // Validate form when fileData or fileErrors change
+  useEffect(() => {
+    validateForm();
+  }, [fileData, fileErrors]);
 
   const renderFormField = (param: any) => {
     const value = formData[param.name] || '';
@@ -122,13 +130,17 @@ export default function WebhookToolDetails({
         return (
           <div className="space-y-2">
             <div className="relative">
+              <label htmlFor={param.name} className="block text-sm font-medium text-gray-700 mb-2">
+                {param.placeholder}
+                {param.required && <span className="text-red-500 ml-1">*</span>}
+              </label>
               <input
                 type="file"
                 id={param.name}
                 accept={param.accept}
                 onChange={(e) => handleFileChange(e.target.files?.[0] || null, param.name)}
                 required={param.required}
-                className="form-input file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-primary-50 file:text-primary-700 hover:file:bg-primary-100"
+                className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 border border-gray-300 rounded-md p-2"
               />
             </div>
             
