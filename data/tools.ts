@@ -13,26 +13,14 @@ export const tools: Tool[] = [
         type: 'file',
         placeholder: 'Upload transcript file',
         required: true,
-        accept: '.txt,.pdf,.doc,.docx'
+        accept: '.txt,.pdf,.doc,.docx,.json'
       },
       {
         name: 'componentCatalog',
         type: 'file',
         placeholder: 'Upload component catalog file',
         required: true,
-        accept: '.txt,.pdf,.doc,.docx'
-      },
-      {
-        name: 'proposalType',
-        type: 'select',
-        options: ['Technical Proposal', 'Business Proposal', 'Project Proposal', 'RFP Response', 'Grant Application'],
-        required: true
-      },
-      {
-        name: 'targetAudience',
-        type: 'select',
-        options: ['Technical Team', 'Management', 'Clients', 'Stakeholders', 'General Audience'],
-        required: true
+        accept: '.txt,.pdf,.doc,.docx,.json'
       },
       {
         name: 'additionalRequirements',

@@ -291,9 +291,6 @@ export default function WebhookToolDetails({
               </>
             ) : (
               <>
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h1m4 0h1m-6 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
                 <span>Execute Workflow</span>
               </>
             )}
@@ -339,10 +336,25 @@ export default function WebhookToolDetails({
             
             {result.success && result.data && (
               <div className="space-y-2">
-                <h4 className="font-medium text-green-800">Response Data:</h4>
-                <pre className="bg-green-100 p-3 rounded text-sm text-green-900 overflow-x-auto">
-                  {JSON.stringify(result.data, null, 2)}
-                </pre>
+                <h4 className="font-medium text-green-800">Generated Proposal:</h4>
+                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                  <div 
+                    className="prose prose-sm max-w-none text-green-900"
+                    dangerouslySetInnerHTML={{ 
+                      __html: (() => {
+                        let content = '';
+                        if (Array.isArray(result.data)) {
+                          content = result.data[0]?.data || '';
+                        } else if (result.data && typeof result.data === 'object' && result.data.data) {
+                          content = result.data.data || '';
+                        } else {
+                          content = result.data || '';
+                        }
+                        return typeof content === 'string' ? content.replace(/\n/g, '<br>').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/\*(.*?)\*/g, '<em>$1</em>') : '';
+                      })()
+                    }}
+                  />
+                </div>
               </div>
             )}
             
