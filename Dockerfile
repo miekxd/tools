@@ -44,6 +44,9 @@ RUN chown nextjs:nodejs .next
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
+# Ensure proper permissions for all copied files
+RUN chown -R nextjs:nodejs ./
+
 USER nextjs
 
 EXPOSE 3000
