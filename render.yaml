@@ -8,4 +8,6 @@ services:
       - key: NODE_ENV
         value: production
       - key: PORT
-        value: 8080
+        value: 3000
+      - key: NEXT_PUBLIC_WEBHOOK_URL
+        value: https://mikeusdominus.app.n8n.cloud/webhook-test/proposal-writer

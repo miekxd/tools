@@ -3,8 +3,9 @@ services:
   app:
     build: .
     ports:
-      - "8080:8080"
+      - "3000:3000"
     environment:
       - NODE_ENV=production
-      - PORT=8080
+      - PORT=3000
+      - NEXT_PUBLIC_WEBHOOK_URL=https://mikeusdominus.app.n8n.cloud/webhook-test/proposal-writer
     restart: unless-stopped

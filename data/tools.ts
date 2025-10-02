@@ -5,7 +5,7 @@ export const tools: Tool[] = [
     id: 'proposal-writer-agent',
     name: 'Proposal Writer Agent',
     description: 'Generate professional proposals by analyzing transcript content and component catalog data. Upload your transcript and component catalog files to create comprehensive, tailored proposals.',
-    webhookUrl: 'https://mikeusdominus.app.n8n.cloud/webhook-test/proposal-writer',
+    webhookUrl: process.env.NEXT_PUBLIC_WEBHOOK_URL || 'https://mikeusdominus.app.n8n.cloud/webhook-test/proposal-writer',
     type: 'webhook',
     parameters: [
       {
