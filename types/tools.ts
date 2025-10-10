@@ -13,6 +13,8 @@ export interface Tool {
   description: string;
   webhookUrl: string;
   type: 'webhook';
+  category: string;
+  icon: string;
   parameters: ToolParameter[];
 }
 

@@ -1,5 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Enable standalone output for Docker
+  output: 'standalone',
   // App Router is enabled by default in Next.js 13+
   experimental: {
     outputFileTracingRoot: process.cwd(),
