@@ -231,54 +231,57 @@ export default function ProposalWriterPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen" style={{ backgroundColor: 'var(--bg-primary)' }}>
       <div className="flex h-screen">
         {/* Sidebar */}
-        <div className="w-1/6 bg-white border-r border-gray-200 flex flex-col">
+        <div className="w-64 flex-shrink-0">
           <ToolSidebar />
         </div>
 
         {/* Main Content */}
-        <div className="w-5/6 flex flex-col">
-          <div className="flex-1 overflow-y-auto bg-white">
+        <div className="flex-1 flex flex-col">
+          <div className="flex-1 overflow-y-auto">
             <div className="p-8">
               {/* Tool Header */}
               <div className="mb-8">
                 <div className="mb-4">
-                  <h1 className="text-3xl font-bold text-gray-900">{tool.name}</h1>
+                  <h1 className="text-3xl font-bold" style={{ color: 'var(--text-primary)' }}>{tool.name}</h1>
                 </div>
                 
-                <p className="text-lg text-gray-600 leading-relaxed">
+                <p className="text-lg leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
                   {tool.description}
                 </p>
               </div>
 
               <div className="max-w-4xl mx-auto space-y-8">
                 {/* Webhook Info */}
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
+                <div className="rounded-lg p-6 border" style={{ 
+                  backgroundColor: 'var(--bg-secondary)',
+                  borderColor: 'var(--border-secondary)'
+                }}>
                   <div className="flex items-start space-x-3">
                     <div className="flex-shrink-0">
-                      <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg className="w-6 h-6 text-purple" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                       </svg>
                     </div>
                     <div>
-                      <h3 className="text-lg font-semibold text-blue-900 mb-2">
+                      <h3 className="text-lg font-semibold mb-2 text-purple">
                         Webhook Configuration
                       </h3>
-                      <p className="text-blue-800 mb-3">
+                      <p className="mb-3" style={{ color: 'var(--text-secondary)' }}>
                         This tool will send data to the configured webhook endpoint when executed.
                       </p>
-                      <div className="text-sm text-blue-700">
-                        <strong>Endpoint:</strong> <code className="bg-blue-100 px-2 py-1 rounded">{tool.webhookUrl}</code>
+                      <div className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+                        <strong>Endpoint:</strong> <code className="px-2 py-1 rounded" style={{ backgroundColor: 'var(--bg-tertiary)' }}>{tool.webhookUrl}</code>
                       </div>
                     </div>
                   </div>
                 </div>
 
                 {/* Form */}
-                <div className="bg-white border border-gray-200 rounded-lg p-6">
-                  <h3 className="text-xl font-semibold text-gray-900 mb-6">
+                <div className="card p-6">
+                  <h3 className="text-xl font-semibold mb-6" style={{ color: 'var(--text-primary)' }}>
                     Configure Parameters
                   </h3>
                   
@@ -305,11 +308,11 @@ export default function ProposalWriterPage() {
                   </form>
 
                   {/* Execute Button */}
-                  <div className="mt-8 pt-6 border-t border-gray-200">
+                  <div className="mt-8 pt-6 border-t" style={{ borderColor: 'var(--border-primary)' }}>
                     <button
                       onClick={handleWebhookExecute}
                       disabled={!isFormValid() || isLoading}
-                      className="btn-success flex items-center space-x-2 py-3 px-6 text-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="btn-primary flex items-center space-x-2 py-3 px-6 text-lg disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {isLoading ? (
                         <>
@@ -324,7 +327,7 @@ export default function ProposalWriterPage() {
                     </button>
                     
                     {!isFormValid() && (
-                      <p className="mt-2 text-sm text-gray-500">
+                      <p className="mt-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
                         Please fill in all required fields to execute the workflow.
                       </p>
                     )}
@@ -334,7 +337,7 @@ export default function ProposalWriterPage() {
                 {/* Results */}
                 {webhookResult && (
                   <div className="space-y-4">
-                    <h3 className="text-lg font-semibold text-gray-900">Execution Result</h3>
+                    <h3 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>Execution Result</h3>
                     
                     <div className={`border rounded-lg p-4 ${
                       webhookResult.success 

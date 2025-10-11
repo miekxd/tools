@@ -1,95 +1,115 @@
-'use client';
-
 import Link from 'next/link';
-import ToolSidebar from '@/components/ToolSidebar';
+import { createClient } from '@/lib/supabase/server';
+import { redirect } from 'next/navigation';
 
-export default function Home() {
-  const tools = [
+export default async function Home() {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  // If user is logged in, redirect to tools
+  if (user) {
+    redirect('/tools/task-manager');
+  }
+
+  const features = [
     {
-      id: 'proposal-writer',
-      name: 'Proposal Writer',
-      description: 'Generate professional proposals by analyzing transcript content and component catalog data.',
       icon: '📝',
-      href: '/tools/proposal-writer'
+      title: 'Proposal Writer',
+      description: 'Generate professional proposals by analyzing transcript content and component catalog data.'
     },
     {
-      id: 'csv-processor',
-      name: 'CSV Processor',
-      description: 'Process and analyze CSV files with advanced filtering and transformation options.',
       icon: '📊',
-      href: '/tools/csv-processor'
+      title: 'CSV Processor',
+      description: 'Process and analyze CSV files with advanced filtering and transformation options.'
     },
     {
-      id: 'task-manager',
-      name: 'Task Manager',
-      description: 'Organize your tasks with a beautiful black and purple gradient theme.',
       icon: '✅',
-      href: '/tools/task-manager'
+      title: 'Task Manager',
+      description: 'Organize your tasks with a beautiful black and purple gradient theme.'
     }
-    // Add more tools here as you create them
   ];
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="flex h-screen">
-        {/* Sidebar */}
-        <div className="w-1/6 bg-white border-r border-gray-200 flex flex-col">
-          <ToolSidebar />
+    <div className="min-h-screen" style={{ backgroundColor: 'var(--bg-secondary)' }}>
+      {/* Header */}
+      <header style={{ backgroundColor: 'var(--bg-primary)', boxShadow: '0 1px 3px var(--shadow)' }}>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
+          <h1 className="text-2xl font-bold text-purple">Tools</h1>
+          <div className="flex gap-4">
+            <Link
+              href="/sign-in"
+              className="px-4 py-2 font-medium hover:opacity-80 transition-opacity duration-200"
+              style={{ color: 'var(--text-primary)' }}
+            >
+              Sign In
+            </Link>
+            <Link
+              href="/sign-up"
+              className="btn-primary"
+            >
+              Get Started
+            </Link>
+          </div>
+        </div>
+      </header>
+
+      {/* Hero Section */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24">
+        <div className="text-center mb-16">
+          <h2 className="text-5xl font-bold mb-6" style={{ color: 'var(--text-primary)' }}>
+            Your Personal Tool Suite
+          </h2>
+          <p className="text-xl mb-8 max-w-2xl mx-auto" style={{ color: 'var(--text-secondary)' }}>
+            Access powerful tools to boost your productivity. Sign up to get started with task management, data processing, and more.
+          </p>
+          <div className="flex gap-4 justify-center">
+            <Link
+              href="/sign-up"
+              className="btn-primary px-8 py-3 text-lg"
+            >
+              Create Free Account
+            </Link>
+            <Link
+              href="/sign-in"
+              className="btn-secondary px-8 py-3 text-lg"
+            >
+              Sign In
+            </Link>
+          </div>
         </div>
 
-        {/* Main Content */}
-        <div className="w-5/6 flex flex-col">
-          <div className="flex-1 overflow-y-auto bg-white">
-            <div className="p-8">
-              <div className="max-w-4xl mx-auto">
-                <div className="text-center mb-12">
-                  <h1 className="text-4xl font-bold text-gray-900 mb-4">
-                    Welcome to Tools
-                  </h1>
-                  <p className="text-xl text-gray-600 mb-8">
-                    Select a tool from the sidebar to get started, or browse all available tools below.
-                  </p>
-                </div>
-
-                {/* Tools Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {tools.map((tool) => (
-                    <Link key={tool.id} href={tool.href}>
-                      <div className="bg-white border border-gray-200 rounded-lg p-6 hover:border-blue-300 hover:shadow-md transition-all duration-200 cursor-pointer">
-                        <div className="flex items-center space-x-3 mb-4">
-                          <span className="text-2xl">{tool.icon}</span>
-                          <h3 className="text-lg font-semibold text-gray-900">
-                            {tool.name}
-                          </h3>
-                        </div>
-                        <p className="text-gray-600 text-sm leading-relaxed">
-                          {tool.description}
-                        </p>
-                        <div className="mt-4 pt-4 border-t border-gray-100">
-                          <span className="text-blue-600 text-sm font-medium">
-                            Use Tool →
-                          </span>
-                        </div>
-                      </div>
-                    </Link>
-                  ))}
-                </div>
-
-                {/* Empty state if no tools */}
-                {tools.length === 0 && (
-                  <div className="text-center py-12">
-                    <div className="text-6xl mb-4">🔧</div>
-                    <h2 className="text-2xl font-semibold text-gray-600 mb-2">
-                      No Tools Available
-                    </h2>
-                    <p className="text-gray-500">
-                      Tools will appear here once they are created.
-                    </p>
-                  </div>
-                )}
-              </div>
+        {/* Features Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mt-16">
+          {features.map((feature, index) => (
+            <div
+              key={index}
+              className="card p-8 hover:shadow-lg transition-shadow duration-200"
+            >
+              <div className="text-4xl mb-4">{feature.icon}</div>
+              <h3 className="text-xl font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>
+                {feature.title}
+              </h3>
+              <p style={{ color: 'var(--text-secondary)' }}>
+                {feature.description}
+              </p>
             </div>
-          </div>
+          ))}
+        </div>
+
+        {/* CTA Section */}
+        <div className="mt-24 text-center card p-12">
+          <h3 className="text-3xl font-bold mb-4" style={{ color: 'var(--text-primary)' }}>
+            Ready to get started?
+          </h3>
+          <p className="text-lg mb-8" style={{ color: 'var(--text-secondary)' }}>
+            Create your free account and start using our tools today.
+          </p>
+          <Link
+            href="/sign-up"
+            className="btn-primary inline-block px-8 py-3 text-lg"
+          >
+            Sign Up Now
+          </Link>
         </div>
       </div>
     </div>

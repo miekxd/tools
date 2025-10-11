@@ -2,60 +2,233 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Theme Variables */
+:root {
+  /* Light Mode - Soft Purple Theme */
+  --bg-primary: #FFFFFF;
+  --bg-secondary: #F8F5FF;
+  --bg-tertiary: #F3F0FF;
+  --bg-hover: #EDE9FE;
+  
+  --text-primary: #1F2937;
+  --text-secondary: #6B7280;
+  --text-tertiary: #9CA3AF;
+  
+  --purple-primary: #8B5CF6;
+  --purple-secondary: #A78BFA;
+  --purple-tertiary: #C4B5FD;
+  --purple-light: #EDE9FE;
+  
+  --border-primary: #E5E7EB;
+  --border-secondary: #DDD6FE;
+  
+  --shadow: rgba(139, 92, 246, 0.1);
+}
+
+.dark {
+  /* Dark Mode - Dark Purple Theme */
+  --bg-primary: #1E1B2E;
+  --bg-secondary: #2D2640;
+  --bg-tertiary: #3A3350;
+  --bg-hover: #4A4160;
+  
+  --text-primary: #F3F4F6;
+  --text-secondary: #D1D5DB;
+  --text-tertiary: #9CA3AF;
+  
+  --purple-primary: #A78BFA;
+  --purple-secondary: #C4B5FD;
+  --purple-tertiary: #DDD6FE;
+  --purple-light: #8B5CF6;
+  
+  --border-primary: #4A4160;
+  --border-secondary: #6B5B95;
+  
+  --shadow: rgba(167, 139, 250, 0.2);
+}
+
+/* Base styles */
+body {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
 /* Custom scrollbar styling */
 ::-webkit-scrollbar {
-  width: 6px;
+  width: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #f1f5f9;
+  background: var(--bg-secondary);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
-  border-radius: 3px;
+  background: var(--purple-tertiary);
+  border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+  background: var(--purple-secondary);
 }
 
-/* Custom focus styles */
-.focus-ring {
-  @apply focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2;
+/* Dark mode scrollbar */
+.dark ::-webkit-scrollbar-track {
+  background: var(--bg-tertiary);
 }
 
 /* Loading spinner */
 .spinner {
-  @apply animate-spin rounded-full h-6 w-6 border-b-2 border-primary-500;
+  @apply animate-spin rounded-full h-6 w-6 border-b-2;
+  border-color: var(--purple-primary);
 }
 
 /* Form input styles */
 .form-input {
-  @apply w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus-ring focus:border-primary-500;
+  background-color: var(--bg-primary);
+  border-color: var(--border-primary);
+  color: var(--text-primary);
+  @apply w-full px-4 py-2 rounded-lg shadow-sm transition-all duration-200;
+  @apply focus:outline-none focus:ring-2;
+  border-width: 1px;
+}
+
+.form-input:focus {
+  border-color: var(--purple-primary);
+  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.1);
+}
+
+.dark .form-input:focus {
+  box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.2);
 }
 
 .form-textarea {
-  @apply w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus-ring focus:border-primary-500 resize-y;
+  background-color: var(--bg-primary);
+  border-color: var(--border-primary);
+  color: var(--text-primary);
+  @apply w-full px-4 py-2 rounded-lg shadow-sm transition-all duration-200 resize-y;
+  @apply focus:outline-none focus:ring-2;
+  border-width: 1px;
+}
+
+.form-textarea:focus {
+  border-color: var(--purple-primary);
+  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.1);
+}
+
+.dark .form-textarea:focus {
+  box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.2);
 }
 
 .form-select {
-  @apply w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus-ring focus:border-primary-500 bg-white;
+  background-color: var(--bg-primary);
+  border-color: var(--border-primary);
+  color: var(--text-primary);
+  @apply w-full px-4 py-2 rounded-lg shadow-sm transition-all duration-200;
+  @apply focus:outline-none focus:ring-2;
+  border-width: 1px;
+}
+
+.form-select:focus {
+  border-color: var(--purple-primary);
+  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.1);
 }
 
 /* Button styles */
 .btn-primary {
-  @apply bg-primary-500 hover:bg-primary-600 text-white font-medium py-2 px-4 rounded-md transition-colors duration-200 focus-ring;
+  background-color: var(--purple-primary);
+  color: white;
+  @apply font-medium py-2 px-6 rounded-lg transition-all duration-200 shadow-sm;
+  @apply hover:shadow-md focus:outline-none focus:ring-2 focus:ring-offset-2;
+}
+
+.btn-primary:hover {
+  filter: brightness(1.1);
 }
 
 .btn-secondary {
-  @apply bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium py-2 px-4 rounded-md transition-colors duration-200 focus-ring;
+  background-color: var(--bg-secondary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-primary);
+  @apply font-medium py-2 px-6 rounded-lg transition-all duration-200;
+  @apply hover:bg-opacity-80 focus:outline-none focus:ring-2 focus:ring-offset-2;
 }
 
 .btn-success {
-  @apply bg-success-500 hover:bg-success-600 text-white font-medium py-2 px-4 rounded-md transition-colors duration-200 focus-ring;
+  background-color: #10B981;
+  color: white;
+  @apply font-medium py-2 px-6 rounded-lg transition-all duration-200 shadow-sm;
+  @apply hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-offset-2;
 }
 
 .btn-error {
-  @apply bg-error-500 hover:bg-error-600 text-white font-medium py-2 px-4 rounded-md transition-colors duration-200 focus-ring;
+  background-color: #EF4444;
+  color: white;
+  @apply font-medium py-2 px-6 rounded-lg transition-all duration-200 shadow-sm;
+  @apply hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-offset-2;
+}
+
+/* Card styles */
+.card {
+  background-color: var(--bg-primary);
+  border: 1px solid var(--border-primary);
+  @apply rounded-lg shadow-sm transition-all duration-200;
+}
+
+.card:hover {
+  box-shadow: 0 4px 6px -1px var(--shadow), 0 2px 4px -1px var(--shadow);
+}
+
+/* Utility classes */
+.text-purple {
+  color: var(--purple-primary);
+}
+
+.bg-purple {
+  background-color: var(--purple-primary);
+}
+
+.border-purple {
+  border-color: var(--purple-secondary);
+}
+
+.bg-secondary {
+  background-color: var(--bg-secondary);
+}
+
+.bg-tertiary {
+  background-color: var(--bg-tertiary);
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-out;
+}
+
+/* Checkbox custom styling */
+.custom-checkbox {
+  @apply w-5 h-5 rounded border-2 cursor-pointer transition-all duration-200;
+  border-color: var(--purple-secondary);
+}
+
+.custom-checkbox:checked {
+  background-color: var(--purple-primary);
+  border-color: var(--purple-primary);
+}
+
+/* Focus visible for accessibility */
+*:focus-visible {
+  outline: 2px solid var(--purple-primary);
+  outline-offset: 2px;
 }

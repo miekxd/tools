@@ -1,45 +1,144 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import ToolSidebar from '@/components/ToolSidebar';
+import { createClient } from '@/lib/supabase/client';
+import { User } from '@supabase/supabase-js';
 
 interface Task {
   id: string;
   text: string;
   completed: boolean;
-  createdAt: Date;
+  created_at: string;
 }
 
 export default function TaskManagerPage() {
+  const supabase = createClient();
+  const [user, setUser] = useState<User | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [newTask, setNewTask] = useState('');
   const [filter, setFilter] = useState<'all' | 'active' | 'completed'>('all');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
-  const addTask = () => {
-    if (newTask.trim()) {
-      const task: Task = {
-        id: Date.now().toString(),
-        text: newTask.trim(),
-        completed: false,
-        createdAt: new Date()
-      };
-      setTasks(prev => [...prev, task]);
-      setNewTask('');
+  // Get user and fetch tasks
+  useEffect(() => {
+    const getUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      setUser(user);
+      if (user) {
+        fetchTasks();
+      } else {
+        setLoading(false);
+      }
+    };
+
+    getUser();
+  }, []);
+
+  // Fetch tasks from database
+  const fetchTasks = async () => {
+    try {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('tasks')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setTasks(data || []);
+    } catch (error: any) {
+      setError(error.message);
+      console.error('Error fetching tasks:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const toggleTask = (id: string) => {
-    setTasks(prev => prev.map(task => 
-      task.id === id ? { ...task, completed: !task.completed } : task
-    ));
+  // Add new task
+  const addTask = async () => {
+    if (!newTask.trim() || !user) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('tasks')
+        .insert([
+          {
+            user_id: user.id,
+            text: newTask.trim(),
+            completed: false,
+          }
+        ])
+        .select()
+        .single();
+
+      if (error) throw error;
+      
+      setTasks(prev => [data, ...prev]);
+      setNewTask('');
+    } catch (error: any) {
+      setError(error.message);
+      console.error('Error adding task:', error);
+    }
   };
 
-  const deleteTask = (id: string) => {
-    setTasks(prev => prev.filter(task => task.id !== id));
+  // Toggle task completion
+  const toggleTask = async (id: string) => {
+    const task = tasks.find(t => t.id === id);
+    if (!task) return;
+
+    try {
+      const { error } = await supabase
+        .from('tasks')
+        .update({ completed: !task.completed })
+        .eq('id', id);
+
+      if (error) throw error;
+
+      setTasks(prev => prev.map(t => 
+        t.id === id ? { ...t, completed: !t.completed } : t
+      ));
+    } catch (error: any) {
+      setError(error.message);
+      console.error('Error toggling task:', error);
+    }
   };
 
-  const clearCompleted = () => {
-    setTasks(prev => prev.filter(task => !task.completed));
+  // Delete task
+  const deleteTask = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from('tasks')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+
+      setTasks(prev => prev.filter(t => t.id !== id));
+    } catch (error: any) {
+      setError(error.message);
+      console.error('Error deleting task:', error);
+    }
+  };
+
+  // Clear completed tasks
+  const clearCompleted = async () => {
+    const completedIds = tasks.filter(t => t.completed).map(t => t.id);
+    if (completedIds.length === 0) return;
+
+    try {
+      const { error } = await supabase
+        .from('tasks')
+        .delete()
+        .in('id', completedIds);
+
+      if (error) throw error;
+
+      setTasks(prev => prev.filter(t => !t.completed));
+    } catch (error: any) {
+      setError(error.message);
+      console.error('Error clearing completed tasks:', error);
+    }
   };
 
   const filteredTasks = tasks.filter(task => {
@@ -53,158 +152,201 @@ export default function TaskManagerPage() {
   const completedCount = tasks.filter(task => task.completed).length;
   const activeCount = tasks.filter(task => !task.completed).length;
 
+  if (!user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: 'var(--bg-primary)' }}>
+        <div className="text-center">
+          <h1 className="text-2xl font-bold mb-4" style={{ color: 'var(--text-primary)' }}>
+            Please sign in to use Task Manager
+          </h1>
+          <a href="/sign-in" className="text-purple hover:opacity-80">
+            Go to Sign In
+          </a>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-black">
+    <div className="min-h-screen" style={{ backgroundColor: 'var(--bg-primary)' }}>
       <div className="flex h-screen">
         {/* Sidebar */}
-        <div className="w-1/6 bg-black/20 backdrop-blur-sm border-r border-purple-500/20 flex flex-col">
+        <div className="w-64 flex-shrink-0">
           <ToolSidebar />
         </div>
 
-        {/* Main Content */}
-        <div className="w-5/6 flex flex-col">
-          <div className="flex-1 overflow-y-auto">
-            <div className="p-8">
-              {/* Header */}
-              <div className="mb-8 text-center">
-                <h1 className="text-4xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent mb-4">
-                  Task Manager
-                </h1>
-                <p className="text-gray-300 text-lg">
-                  Organize your tasks with style
-                </p>
+        {/* Main Content - ClickUp Style */}
+        <div className="flex-1 flex flex-col overflow-hidden">
+          {/* Header */}
+          <div className="border-b px-8 py-6" style={{ borderColor: 'var(--border-primary)' }}>
+            <h1 className="text-3xl font-bold" style={{ color: 'var(--text-primary)' }}>
+              Tasks
+            </h1>
+            <div className="flex items-center gap-6 mt-4">
+              <div className="flex items-center gap-2">
+                <span className="text-2xl font-bold text-purple">{tasks.length}</span>
+                <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>Total</span>
               </div>
-
-              <div className="max-w-2xl mx-auto">
-                {/* Add Task Form */}
-                <div className="bg-black/30 backdrop-blur-sm border border-purple-500/30 rounded-xl p-6 mb-6">
-                  <div className="flex gap-3">
-                    <input
-                      type="text"
-                      value={newTask}
-                      onChange={(e) => setNewTask(e.target.value)}
-                      onKeyPress={(e) => e.key === 'Enter' && addTask()}
-                      placeholder="Add a new task..."
-                      className="flex-1 bg-gray-800/50 border border-purple-500/30 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-400/20"
-                    />
-                    <button
-                      onClick={addTask}
-                      className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white px-6 py-3 rounded-lg font-medium transition-all duration-200 shadow-lg hover:shadow-purple-500/25"
-                    >
-                      Add Task
-                    </button>
-                  </div>
-                </div>
-
-                {/* Stats */}
-                <div className="grid grid-cols-3 gap-4 mb-6">
-                  <div className="bg-black/30 backdrop-blur-sm border border-purple-500/30 rounded-lg p-4 text-center">
-                    <div className="text-2xl font-bold text-purple-400">{tasks.length}</div>
-                    <div className="text-sm text-gray-300">Total</div>
-                  </div>
-                  <div className="bg-black/30 backdrop-blur-sm border border-purple-500/30 rounded-lg p-4 text-center">
-                    <div className="text-2xl font-bold text-blue-400">{activeCount}</div>
-                    <div className="text-sm text-gray-300">Active</div>
-                  </div>
-                  <div className="bg-black/30 backdrop-blur-sm border border-purple-500/30 rounded-lg p-4 text-center">
-                    <div className="text-2xl font-bold text-green-400">{completedCount}</div>
-                    <div className="text-sm text-gray-300">Completed</div>
-                  </div>
-                </div>
-
-                {/* Filter Buttons */}
-                <div className="flex gap-2 mb-6">
-                  {(['all', 'active', 'completed'] as const).map((filterType) => (
-                    <button
-                      key={filterType}
-                      onClick={() => setFilter(filterType)}
-                      className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 ${
-                        filter === filterType
-                          ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg'
-                          : 'bg-black/30 text-gray-300 hover:bg-purple-500/20 border border-purple-500/30'
-                      }`}
-                    >
-                      {filterType.charAt(0).toUpperCase() + filterType.slice(1)}
-                    </button>
-                  ))}
-                  {completedCount > 0 && (
-                    <button
-                      onClick={clearCompleted}
-                      className="ml-auto px-4 py-2 bg-red-600/20 text-red-400 border border-red-500/30 rounded-lg hover:bg-red-600/30 transition-all duration-200"
-                    >
-                      Clear Completed
-                    </button>
-                  )}
-                </div>
-
-                {/* Task List */}
-                <div className="space-y-3">
-                  {filteredTasks.length === 0 ? (
-                    <div className="text-center py-12">
-                      <div className="text-6xl mb-4">📝</div>
-                      <h3 className="text-xl font-semibold text-gray-300 mb-2">
-                        {filter === 'all' ? 'No tasks yet' : 
-                         filter === 'active' ? 'No active tasks' : 
-                         'No completed tasks'}
-                      </h3>
-                      <p className="text-gray-400">
-                        {filter === 'all' ? 'Add your first task above!' : 
-                         filter === 'active' ? 'All tasks are completed!' : 
-                         'Complete some tasks to see them here.'}
-                      </p>
-                    </div>
-                  ) : (
-                    filteredTasks.map((task) => (
-                      <div
-                        key={task.id}
-                        className={`bg-black/30 backdrop-blur-sm border border-purple-500/30 rounded-lg p-4 transition-all duration-200 hover:bg-black/40 ${
-                          task.completed ? 'opacity-60' : ''
-                        }`}
-                      >
-                        <div className="flex items-center gap-3">
-                          <button
-                            onClick={() => toggleTask(task.id)}
-                            className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all duration-200 ${
-                              task.completed
-                                ? 'bg-gradient-to-r from-green-500 to-emerald-500 border-green-500'
-                                : 'border-purple-400 hover:border-purple-300'
-                            }`}
-                          >
-                            {task.completed && (
-                              <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
-                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                              </svg>
-                            )}
-                          </button>
-                          
-                          <span className={`flex-1 transition-all duration-200 ${
-                            task.completed 
-                              ? 'line-through text-gray-400' 
-                              : 'text-white'
-                          }`}>
-                            {task.text}
-                          </span>
-                          
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs text-gray-400">
-                              {task.createdAt.toLocaleDateString()}
-                            </span>
-                            <button
-                              onClick={() => deleteTask(task.id)}
-                              className="text-red-400 hover:text-red-300 transition-colors duration-200 p-1"
-                            >
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                              </svg>
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
+              <div className="flex items-center gap-2">
+                <span className="text-2xl font-bold text-purple">{activeCount}</span>
+                <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>Active</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-2xl font-bold text-purple">{completedCount}</span>
+                <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>Completed</span>
               </div>
             </div>
+          </div>
+
+          {/* Toolbar */}
+          <div className="border-b px-8 py-3 flex items-center justify-between" style={{ 
+            borderColor: 'var(--border-primary)',
+            backgroundColor: 'var(--bg-secondary)'
+          }}>
+            <div className="flex gap-2">
+              {(['all', 'active', 'completed'] as const).map((filterType) => (
+                <button
+                  key={filterType}
+                  onClick={() => setFilter(filterType)}
+                  className="px-4 py-1.5 rounded-md text-sm font-medium transition-all duration-200"
+                  style={{
+                    backgroundColor: filter === filterType ? 'var(--purple-primary)' : 'transparent',
+                    color: filter === filterType ? 'white' : 'var(--text-secondary)',
+                  }}
+                >
+                  {filterType.charAt(0).toUpperCase() + filterType.slice(1)}
+                </button>
+              ))}
+            </div>
+            {completedCount > 0 && (
+              <button
+                onClick={clearCompleted}
+                className="px-4 py-1.5 rounded-md text-sm font-medium text-red-600 hover:bg-red-50 transition-colors duration-200"
+              >
+                Clear Completed
+              </button>
+            )}
+          </div>
+
+          {/* Error Message */}
+          {error && (
+            <div className="mx-8 mt-4 p-3 rounded-lg" style={{ 
+              backgroundColor: '#FEE2E2',
+              borderColor: '#FCA5A5',
+              borderWidth: '1px'
+            }}>
+              <p className="text-sm text-red-600">{error}</p>
+              <button
+                onClick={() => setError('')}
+                className="text-xs text-red-500 hover:text-red-600 mt-1"
+              >
+                Dismiss
+              </button>
+            </div>
+          )}
+
+          {/* Task List */}
+          <div className="flex-1 overflow-y-auto px-8 py-6">
+            {/* Add Task Input - ClickUp Style */}
+            <div className="mb-6">
+              <div className="flex items-center gap-3 group">
+                <button
+                  className="w-5 h-5 rounded border-2 flex-shrink-0 transition-colors duration-200"
+                  style={{
+                    borderColor: 'var(--purple-secondary)'
+                  }}
+                >
+                  <svg className="w-3 h-3 m-auto" style={{ color: 'var(--purple-secondary)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 4v16m8-8H4" />
+                  </svg>
+                </button>
+                <input
+                  type="text"
+                  value={newTask}
+                  onChange={(e) => setNewTask(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && addTask()}
+                  placeholder="Add a task..."
+                  className="flex-1 px-0 py-2 border-0 focus:outline-none focus:ring-0 text-base"
+                  style={{ 
+                    backgroundColor: 'transparent',
+                    color: 'var(--text-primary)',
+                  }}
+                />
+              </div>
+            </div>
+
+            {/* Loading State */}
+            {loading ? (
+              <div className="text-center py-12">
+                <div className="spinner mx-auto mb-4"></div>
+                <p style={{ color: 'var(--text-secondary)' }}>Loading tasks...</p>
+              </div>
+            ) : (
+              /* Tasks */
+              <div className="space-y-1">
+                {filteredTasks.length === 0 ? (
+                  <div className="text-center py-12">
+                    <div className="text-5xl mb-4">📝</div>
+                    <h3 className="text-lg font-semibold mb-2" style={{ color: 'var(--text-secondary)' }}>
+                      {filter === 'all' ? 'No tasks yet' : 
+                       filter === 'active' ? 'No active tasks' : 
+                       'No completed tasks'}
+                    </h3>
+                    <p style={{ color: 'var(--text-tertiary)' }} className="text-sm">
+                      {filter === 'all' ? 'Add your first task above!' : 
+                       filter === 'active' ? 'All tasks are completed!' : 
+                       'Complete some tasks to see them here.'}
+                    </p>
+                  </div>
+                ) : (
+                  filteredTasks.map((task) => (
+                    <div
+                      key={task.id}
+                      className="flex items-center gap-3 px-3 py-3 rounded-lg transition-all duration-200 group hover:bg-secondary"
+                    >
+                      <button
+                        onClick={() => toggleTask(task.id)}
+                        className="w-5 h-5 rounded border-2 flex-shrink-0 flex items-center justify-center transition-all duration-200"
+                        style={{
+                          backgroundColor: task.completed ? 'var(--purple-primary)' : 'transparent',
+                          borderColor: task.completed ? 'var(--purple-primary)' : 'var(--purple-secondary)',
+                        }}
+                      >
+                        {task.completed && (
+                          <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                          </svg>
+                        )}
+                      </button>
+                      
+                      <span 
+                        className={`flex-1 transition-all duration-200 ${task.completed ? 'line-through' : ''}`}
+                        style={{ 
+                          color: task.completed ? 'var(--text-tertiary)' : 'var(--text-primary)'
+                        }}
+                      >
+                        {task.text}
+                      </span>
+                      
+                      <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                        <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>
+                          {new Date(task.created_at).toLocaleDateString()}
+                        </span>
+                        <button
+                          onClick={() => deleteTask(task.id)}
+                          className="p-1 rounded hover:bg-tertiary transition-colors duration-200"
+                          style={{ color: 'var(--text-tertiary)' }}
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>
