@@ -26,6 +26,11 @@ export default async function Home() {
       icon: '✅',
       title: 'Task Manager',
       description: 'Organize your tasks with a beautiful black and purple gradient theme.'
+    },
+    {
+      icon: '💼',
+      title: 'Insider Dashboard',
+      description: 'Track LLM trading calls and monitor insider transaction performance in real-time.'
     }
   ];
 

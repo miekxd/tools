@@ -53,6 +53,12 @@ export default function ToolSidebar() {
       name: 'Task Manager',
       icon: '✅',
       href: '/tools/task-manager'
+    },
+    {
+      id: 'insider-dashboard',
+      name: 'Insider Dashboard',
+      icon: '💼',
+      href: '/tools/insider-dashboard'
     }
     // Add more tools here as you create them
   ];
