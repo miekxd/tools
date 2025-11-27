@@ -22,7 +22,9 @@ export async function POST(request: NextRequest) {
     // Fetch prices for all tickers
     for (const ticker of tickers) {
       try {
-        const quote = await yahooFinance.quote(ticker);
+        const result = await yahooFinance.quote(ticker);
+        // v3 returns an array, get first element
+        const quote = Array.isArray(result) ? result[0] : result;
         prices[ticker] = quote?.regularMarketPrice ?? null;
       } catch (error) {
         console.error(`Error fetching price for ${ticker}:`, error);
