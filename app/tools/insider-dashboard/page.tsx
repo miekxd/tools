@@ -138,15 +138,15 @@ export default function InsiderDashboardPage() {
 
   // Calculate stats
   const totalCalls = allCalls.length;
-  const callsWithPnL = allCalls.filter(c => calculatePnL(c) !== null);
+  const callsWithPnL = allCalls.filter((c: ParsedLLMCall) => calculatePnL(c) !== null);
   const avgPnL = callsWithPnL.length > 0 
-    ? callsWithPnL.reduce((sum, call) => {
+    ? callsWithPnL.reduce((sum: number, call: ParsedLLMCall) => {
         const pnl = calculatePnL(call);
         return sum + (pnl || 0);
       }, 0) / callsWithPnL.length 
     : 0;
-  const totalValue = allCalls.reduce((sum, call) => sum + (call.total_transaction_value || 0), 0);
-  const strongBuyCount = allCalls.filter(c => c.recommendation === 'STRONG BUY').length;
+  const totalValue = allCalls.reduce((sum: number, call: ParsedLLMCall) => sum + (call.total_transaction_value || 0), 0);
+  const strongBuyCount = allCalls.filter((c: ParsedLLMCall) => c.recommendation === 'STRONG BUY').length;
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: 'var(--bg-primary)' }}>
@@ -298,7 +298,7 @@ export default function InsiderDashboardPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {calls.map((call, index) => {
+                    {calls.map((call: ParsedLLMCall, index: number) => {
                       const pnl = calculatePnL(call);
                       const holdingDays = getHoldingDays(call);
                       const recColor = getRecommendationColor(call.recommendation);
@@ -367,7 +367,7 @@ export default function InsiderDashboardPage() {
                             </div>
                             <div className="text-xs" style={{ color: 'var(--text-tertiary)' }}>
                               {call.transaction_dates && call.transaction_dates.length > 0 
-                                ? formatDate(call.transaction_dates.sort((a, b) => new Date(a).getTime() - new Date(b).getTime())[0])
+                                ? formatDate(call.transaction_dates.sort((a: string, b: string) => new Date(a).getTime() - new Date(b).getTime())[0])
                                 : '—'}
                             </div>
                           </td>
@@ -412,7 +412,7 @@ export default function InsiderDashboardPage() {
                           </td>
                           <td className="py-2.5 px-3 text-center">
                             <button
-                              onClick={(e) => {
+                              onClick={(e: any) => {
                                 e.stopPropagation();
                                 openDetailsDialog(call);
                               }}
@@ -497,7 +497,7 @@ export default function InsiderDashboardPage() {
                         Insider Names
                       </h4>
                       <ul className="list-disc list-inside text-sm space-y-1" style={{ color: 'var(--text-secondary)' }}>
-                        {selectedCall.insider_names.map((name, idx) => (
+                        {selectedCall.insider_names.map((name: string, idx: number) => (
                           <li key={idx}>{name}</li>
                         ))}
                       </ul>
@@ -510,7 +510,7 @@ export default function InsiderDashboardPage() {
                         Transaction Dates
                       </h4>
                       <ul className="list-disc list-inside text-sm space-y-1" style={{ color: 'var(--text-secondary)' }}>
-                        {selectedCall.transaction_dates.map((date, idx) => (
+                        {selectedCall.transaction_dates.map((date: string, idx: number) => (
                           <li key={idx}>{formatDate(date)}</li>
                         ))}
                       </ul>
@@ -522,7 +522,7 @@ export default function InsiderDashboardPage() {
                       </h4>
                       {selectedCall.insider_prices_json.length > 0 ? (
                         <ul className="list-disc list-inside text-sm space-y-1" style={{ color: 'var(--text-secondary)' }}>
-                          {selectedCall.insider_prices_json.map((price, idx) => (
+                          {selectedCall.insider_prices_json.map((price: number, idx: number) => (
                             <li key={idx}>${price ? price.toFixed(2) : 'N/A'}</li>
                           ))}
                         </ul>
@@ -537,7 +537,7 @@ export default function InsiderDashboardPage() {
                       </h4>
                       {selectedCall.market_patterns.length > 0 ? (
                         <ul className="list-disc list-inside text-sm space-y-1" style={{ color: 'var(--text-secondary)' }}>
-                          {selectedCall.market_patterns.map((pattern, idx) => (
+                          {selectedCall.market_patterns.map((pattern: string, idx: number) => (
                             <li key={idx}>{pattern}</li>
                           ))}
                         </ul>
