@@ -85,9 +85,9 @@ export async function POST(request: NextRequest) {
       console.log('⚠️  No ALPHA_VANTAGE_API_KEY found. Using Yahoo Finance (may hit rate limits).');
       console.log('💡 Get a free API key at: https://www.alphavantage.co/support/#api-key');
     }
-    
+
     const prices: { [key: string]: number | null } = {};
-    
+
     // Alpha Vantage: 5 calls/min = 12 seconds between calls
     // Yahoo Finance: More aggressive delays needed
     const DELAY_BETWEEN_REQUESTS = useAlphaVantage ? 13000 : 2000; // 13s for Alpha Vantage, 2s for Yahoo
@@ -105,7 +105,7 @@ export async function POST(request: NextRequest) {
         
         let price: number | null = null;
         let source = '';
-
+        
         // Try Alpha Vantage first if API key is available
         if (useAlphaVantage) {
           price = await fetchFromAlphaVantage(ticker);

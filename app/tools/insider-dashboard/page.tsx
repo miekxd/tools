@@ -4,14 +4,15 @@ import { useState, useEffect } from 'react';
 import ToolSidebar from '@/components/ToolSidebar';
 import { createClient } from '@/lib/supabase/client';
 import { LLMCall, ParsedLLMCall } from '@/types/insider';
-import { BarChart3, DollarSign, RefreshCw, Info, TrendingUp, TrendingDown, Loader2, X } from 'lucide-react';
+import { BarChart3, RefreshCw, Info, TrendingUp, TrendingDown, Loader2, X, ChevronRight } from 'lucide-react';
 import * as Dialog from '@radix-ui/react-dialog';
 import * as Tooltip from '@radix-ui/react-tooltip';
 
 export default function InsiderDashboardPage() {
   const supabase = createClient();
   const [calls, setCalls] = useState<ParsedLLMCall[]>([]);
-  const [filter, setFilter] = useState<'all' | 'open' | 'closed'>('open');
+  const [allCalls, setAllCalls] = useState<ParsedLLMCall[]>([]);
+  const [filter, setFilter] = useState<'all' | 'top-winners' | 'top-losers'>('all');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [selectedCall, setSelectedCall] = useState<ParsedLLMCall | null>(null);
@@ -19,24 +20,22 @@ export default function InsiderDashboardPage() {
 
   useEffect(() => {
     fetchCalls();
-  }, [filter]);
+  }, []);
+
+  useEffect(() => {
+    filterCalls();
+  }, [filter, allCalls]);
 
   const fetchCalls = async () => {
     try {
       setLoading(true);
-      let query = supabase
+      const { data, error } = await supabase
         .from('llm_calls')
         .select('*')
         .order('entry_date', { ascending: false });
 
-      if (filter === 'open') query = query.eq('is_closed', false);
-      if (filter === 'closed') query = query.eq('is_closed', true);
-
-      const { data, error } = await query;
-
       if (error) throw error;
 
-      // Parse JSON fields
       const parsedData: ParsedLLMCall[] = (data || []).map((call: LLMCall) => ({
         ...call,
         transaction_dates: parseJSON(call.transaction_dates, []),
@@ -45,13 +44,36 @@ export default function InsiderDashboardPage() {
         insider_prices_json: parseJSON(call.insider_prices_json, []),
       }));
 
-      setCalls(parsedData);
+      setAllCalls(parsedData);
     } catch (error: any) {
       setError(error.message);
       console.error('Error fetching calls:', error);
     } finally {
       setLoading(false);
     }
+  };
+
+  const filterCalls = () => {
+    if (filter === 'all') {
+      setCalls(allCalls);
+      return;
+    }
+
+    const callsWithPnL = allCalls
+      .map((call: ParsedLLMCall) => ({
+        call,
+        pnl: calculatePnL(call)
+      }))
+      .filter((item: { call: ParsedLLMCall; pnl: number | null }) => item.pnl !== null)
+      .sort((a: { call: ParsedLLMCall; pnl: number | null }, b: { call: ParsedLLMCall; pnl: number | null }) => {
+        const pnlA = a.pnl || 0;
+        const pnlB = b.pnl || 0;
+        return filter === 'top-winners' ? pnlB - pnlA : pnlA - pnlB;
+      })
+      .slice(0, 20)
+      .map((item: { call: ParsedLLMCall; pnl: number | null }) => item.call);
+
+    setCalls(callsWithPnL);
   };
 
   const parseJSON = (value: any, defaultValue: any) => {
@@ -71,22 +93,21 @@ export default function InsiderDashboardPage() {
   };
 
   const calculatePnL = (call: ParsedLLMCall): number | null => {
+    if (call.price_change_pct !== null && call.price_change_pct !== undefined) {
+      return call.price_change_pct;
+    }
     if (!call.current_price || !call.entry_price) return null;
     return ((call.current_price - call.entry_price) / call.entry_price) * 100;
   };
 
-  const calculateHoldingDays = (call: ParsedLLMCall): number => {
+  const getHoldingDays = (call: ParsedLLMCall): number | null => {
+    if (call.holding_days !== null && call.holding_days !== undefined) {
+      return call.holding_days;
+    }
     const entryDate = new Date(call.entry_date);
     const today = new Date();
     const diffTime = Math.abs(today.getTime() - entryDate.getTime());
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    return diffDays;
-  };
-
-  const getEarliestInsiderDate = (dates: string[]): string => {
-    if (!dates || dates.length === 0) return 'N/A';
-    const sorted = dates.sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
-    return new Date(sorted[0]).toLocaleDateString();
+    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
   };
 
   const getRecommendationColor = (recommendation: string) => {
@@ -107,17 +128,25 @@ export default function InsiderDashboardPage() {
     return pnl >= 0 ? '#10B981' : '#EF4444';
   };
 
+  const formatDate = (date: Date | string): string => {
+    const d = typeof date === 'string' ? new Date(date) : date;
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const year = d.getFullYear();
+    return `${day}/${month}/${year}`;
+  };
+
   // Calculate stats
-  const activeCalls = calls.filter(c => !c.is_closed).length;
-  const callsWithPnL = calls.filter(c => calculatePnL(c) !== null);
+  const totalCalls = allCalls.length;
+  const callsWithPnL = allCalls.filter(c => calculatePnL(c) !== null);
   const avgPnL = callsWithPnL.length > 0 
     ? callsWithPnL.reduce((sum, call) => {
         const pnl = calculatePnL(call);
         return sum + (pnl || 0);
       }, 0) / callsWithPnL.length 
     : 0;
-  const totalValue = calls.reduce((sum, call) => sum + (call.total_transaction_value || 0), 0);
-  const strongBuyCount = calls.filter(c => c.recommendation === 'STRONG BUY').length;
+  const totalValue = allCalls.reduce((sum, call) => sum + (call.total_transaction_value || 0), 0);
+  const strongBuyCount = allCalls.filter(c => c.recommendation === 'STRONG BUY').length;
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: 'var(--bg-primary)' }}>
@@ -129,387 +158,275 @@ export default function InsiderDashboardPage() {
 
         {/* Main Content */}
         <div className="flex-1 flex flex-col overflow-hidden">
-          {/* Header */}
-          <div className="border-b px-8 py-6" style={{ borderColor: 'var(--border-primary)' }}>
-            <div className="flex items-center gap-3">
-              <BarChart3 className="w-8 h-8" style={{ color: 'var(--purple-primary)' }} />
-            <h1 className="text-3xl font-bold" style={{ color: 'var(--text-primary)' }}>
-                Insider Trading Dashboard
-            </h1>
+          {/* Professional Header */}
+          <div className="border-b px-6 py-4" style={{ borderColor: 'var(--border-primary)', backgroundColor: 'var(--bg-secondary)' }}>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <BarChart3 className="w-6 h-6" style={{ color: 'var(--purple-primary)' }} />
+                <h1 className="text-xl font-semibold tracking-tight" style={{ color: 'var(--text-primary)' }}>
+                  Insider Trading Analysis
+                </h1>
+              </div>
+              <button
+                onClick={fetchCalls}
+                className="px-3 py-1.5 rounded text-xs font-medium transition-colors duration-200 flex items-center gap-1.5"
+                style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-primary)' }}
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                Refresh
+              </button>
             </div>
-            
-            {/* Stats Cards */}
-            <div className="grid grid-cols-4 gap-4 mt-6">
-              <Tooltip.Provider>
-                <Tooltip.Root>
-                  <Tooltip.Trigger asChild>
-                    <div className="rounded-lg p-4 cursor-help" style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-primary)', borderWidth: '1px' }}>
-                <div className="flex items-center gap-2">
-                  <span className="text-2xl font-bold text-purple">{activeCalls}</span>
-                  <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>Active Calls</span>
-                </div>
+
+            {/* Compact Stats Bar */}
+            <div className="flex items-center gap-6 text-xs">
+              <div className="flex items-center gap-1.5">
+                <span className="font-semibold" style={{ color: 'var(--text-secondary)' }}>Total:</span>
+                <span className="font-bold" style={{ color: 'var(--text-primary)' }}>{totalCalls}</span>
               </div>
-                  </Tooltip.Trigger>
-                  <Tooltip.Portal>
-                    <Tooltip.Content
-                      className="rounded-md px-3 py-2 text-sm shadow-lg"
-                      style={{ 
-                        backgroundColor: 'var(--bg-tertiary)',
-                        color: 'var(--text-primary)',
-                        border: '1px solid var(--border-primary)'
-                      }}
-                      sideOffset={5}
-                    >
-                      Number of open trading positions
-                      <Tooltip.Arrow style={{ fill: 'var(--bg-tertiary)' }} />
-                    </Tooltip.Content>
-                  </Tooltip.Portal>
-                </Tooltip.Root>
-              </Tooltip.Provider>
-              
-              <Tooltip.Provider>
-                <Tooltip.Root>
-                  <Tooltip.Trigger asChild>
-                    <div className="rounded-lg p-4 cursor-help" style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-primary)', borderWidth: '1px' }}>
-                <div className="flex items-center gap-2">
-                        {avgPnL >= 0 ? (
-                          <TrendingUp className="w-5 h-5" style={{ color: '#10B981' }} />
-                        ) : (
-                          <TrendingDown className="w-5 h-5" style={{ color: '#EF4444' }} />
-                        )}
-                  <span className="text-2xl font-bold" style={{ color: avgPnL >= 0 ? '#10B981' : '#EF4444' }}>
-                    {avgPnL >= 0 ? '+' : ''}{avgPnL.toFixed(2)}%
-                  </span>
-                  <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>Avg P&L</span>
-                </div>
+              <div className="flex items-center gap-1.5">
+                <span className="font-semibold" style={{ color: 'var(--text-secondary)' }}>Avg P&L:</span>
+                <span 
+                  className="font-bold font-mono" 
+                  style={{ color: avgPnL >= 0 ? '#10B981' : '#EF4444' }}
+                >
+                  {avgPnL >= 0 ? '+' : ''}{avgPnL.toFixed(2)}%
+                </span>
               </div>
-                  </Tooltip.Trigger>
-                  <Tooltip.Portal>
-                    <Tooltip.Content
-                      className="rounded-md px-3 py-2 text-sm shadow-lg"
-                      style={{ 
-                        backgroundColor: 'var(--bg-tertiary)',
-                        color: 'var(--text-primary)',
-                        border: '1px solid var(--border-primary)'
-                      }}
-                      sideOffset={5}
-                    >
-                      Average profit and loss percentage
-                      <Tooltip.Arrow style={{ fill: 'var(--bg-tertiary)' }} />
-                    </Tooltip.Content>
-                  </Tooltip.Portal>
-                </Tooltip.Root>
-              </Tooltip.Provider>
-              
-              <Tooltip.Provider>
-                <Tooltip.Root>
-                  <Tooltip.Trigger asChild>
-                    <div className="rounded-lg p-4 cursor-help" style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-primary)', borderWidth: '1px' }}>
-                <div className="flex items-center gap-2">
-                        <DollarSign className="w-5 h-5 text-purple" />
-                  <span className="text-2xl font-bold text-purple">
-                    ${(totalValue / 1000000).toFixed(2)}M
-                  </span>
-                  <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>Total Value</span>
-                </div>
+              <div className="flex items-center gap-1.5">
+                <span className="font-semibold" style={{ color: 'var(--text-secondary)' }}>Value:</span>
+                <span className="font-bold font-mono" style={{ color: 'var(--text-primary)' }}>
+                  ${(totalValue / 1000000).toFixed(1)}M
+                </span>
               </div>
-                  </Tooltip.Trigger>
-                  <Tooltip.Portal>
-                    <Tooltip.Content
-                      className="rounded-md px-3 py-2 text-sm shadow-lg"
-                      style={{ 
-                        backgroundColor: 'var(--bg-tertiary)',
-                        color: 'var(--text-primary)',
-                        border: '1px solid var(--border-primary)'
-                      }}
-                      sideOffset={5}
-                    >
-                      Total transaction value across all positions
-                      <Tooltip.Arrow style={{ fill: 'var(--bg-tertiary)' }} />
-                    </Tooltip.Content>
-                  </Tooltip.Portal>
-                </Tooltip.Root>
-              </Tooltip.Provider>
-              
-              <Tooltip.Provider>
-                <Tooltip.Root>
-                  <Tooltip.Trigger asChild>
-                    <div className="rounded-lg p-4 cursor-help" style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-primary)', borderWidth: '1px' }}>
-                <div className="flex items-center gap-2">
-                  <span className="text-2xl font-bold text-purple">{strongBuyCount}</span>
-                  <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>Strong Buy</span>
-                </div>
+              <div className="flex items-center gap-1.5">
+                <span className="font-semibold" style={{ color: 'var(--text-secondary)' }}>Strong Buy:</span>
+                <span className="font-bold" style={{ color: 'var(--purple-primary)' }}>{strongBuyCount}</span>
               </div>
-                  </Tooltip.Trigger>
-                  <Tooltip.Portal>
-                    <Tooltip.Content
-                      className="rounded-md px-3 py-2 text-sm shadow-lg"
-                      style={{ 
-                        backgroundColor: 'var(--bg-tertiary)',
-                        color: 'var(--text-primary)',
-                        border: '1px solid var(--border-primary)'
-                      }}
-                      sideOffset={5}
-                    >
-                      Number of positions with STRONG BUY recommendation
-                      <Tooltip.Arrow style={{ fill: 'var(--bg-tertiary)' }} />
-                    </Tooltip.Content>
-                  </Tooltip.Portal>
-                </Tooltip.Root>
-              </Tooltip.Provider>
             </div>
           </div>
 
           {/* Filter Tabs */}
-          <div className="border-b px-8 py-3 flex items-center justify-between" style={{ 
+          <div className="border-b px-6 py-2 flex items-center gap-1" style={{ 
             borderColor: 'var(--border-primary)',
-            backgroundColor: 'var(--bg-secondary)'
+            backgroundColor: 'var(--bg-primary)'
           }}>
-            <div className="flex gap-2">
-              {(['all', 'open', 'closed'] as const).map((filterType) => (
-                <button
-                  key={filterType}
-                  onClick={() => setFilter(filterType)}
-                  className="px-4 py-1.5 rounded-md text-sm font-medium transition-all duration-200"
-                  style={{
-                    backgroundColor: filter === filterType ? 'var(--purple-primary)' : 'transparent',
-                    color: filter === filterType ? 'white' : 'var(--text-secondary)',
-                  }}
-                >
-                  {filterType.charAt(0).toUpperCase() + filterType.slice(1)}
-                </button>
-              ))}
-            </div>
-            <div className="flex gap-2">
-              <Tooltip.Provider>
-                <Tooltip.Root>
-                  <Tooltip.Trigger asChild>
-                    <button
-                      onClick={fetchCalls}
-                      className="px-4 py-1.5 rounded-md text-sm font-medium transition-colors duration-200 flex items-center gap-2"
-                      style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-primary)' }}
-                    >
-                      <RefreshCw className="w-4 h-4" />
-                      Refresh
-                    </button>
-                  </Tooltip.Trigger>
-                  <Tooltip.Portal>
-                    <Tooltip.Content
-                      className="rounded-md px-3 py-2 text-sm shadow-lg"
-                      style={{ 
-                        backgroundColor: 'var(--bg-tertiary)',
-                        color: 'var(--text-primary)',
-                        border: '1px solid var(--border-primary)'
-                      }}
-                      sideOffset={5}
-                    >
-                      Reload data from database
-                      <Tooltip.Arrow style={{ fill: 'var(--bg-tertiary)' }} />
-                    </Tooltip.Content>
-                  </Tooltip.Portal>
-                </Tooltip.Root>
-              </Tooltip.Provider>
-            </div>
+            {(['all', 'top-winners', 'top-losers'] as const).map((filterType) => (
+              <button
+                key={filterType}
+                onClick={() => setFilter(filterType)}
+                className="px-3 py-1 rounded text-xs font-medium transition-all duration-150"
+                style={{
+                  backgroundColor: filter === filterType ? 'var(--purple-primary)' : 'transparent',
+                  color: filter === filterType ? 'white' : 'var(--text-secondary)',
+                }}
+              >
+                {filterType === 'all' ? 'All' : 
+                 filterType === 'top-winners' ? 'Top Winners' : 
+                 'Top Losers'}
+              </button>
+            ))}
           </div>
-
-          {/* Column Headers */}
-          {calls.length > 0 && (
-            <div className="px-8 py-3 border-b" style={{ 
-              backgroundColor: 'var(--bg-secondary)',
-              borderColor: 'var(--border-primary)'
-            }}>
-              <div className="grid grid-cols-12 gap-4 items-center">
-                <div className="col-start-1">
-                  <span className="text-xs font-semibold uppercase pl-4" style={{ color: 'var(--text-secondary)' }}>
-                    Ticker
-                  </span>
-                </div>
-                <div className="col-span-2">
-                  <span className="text-xs font-semibold uppercase pl-4" style={{ color: 'var(--text-secondary)' }}>
-                    Company
-                  </span>
-                </div>
-                <div className="col-span-1">
-                  <span className="text-xs font-semibold uppercase" style={{ color: 'var(--text-secondary)' }}>
-                    Recommendation
-                  </span>
-                </div>
-                <div className="col-span-2">
-                  <span className="text-xs font-semibold uppercase" style={{ color: 'var(--text-secondary)' }}>
-                    Insider Price / Date
-                  </span>
-                </div>
-                <div className="col-span-2">
-                  <span className="text-xs font-semibold uppercase" style={{ color: 'var(--text-secondary)' }}>
-                    My Entry Price / Date
-                  </span>
-                </div>
-                <div className="col-span-2">
-                  <span className="text-xs font-semibold uppercase" style={{ color: 'var(--text-secondary)' }}>
-                    Current Price
-                  </span>
-                </div>
-                <div className="col-span-1">
-                  <span className="text-xs font-semibold uppercase" style={{ color: 'var(--text-secondary)' }}>
-                    P&L / Days
-                  </span>
-                </div>
-                <div className="col-span-1 text-right">
-                  <span className="text-xs font-semibold uppercase" style={{ color: 'var(--text-secondary)' }}>
-                    Details
-                  </span>
-                </div>
-              </div>
-            </div>
-          )}
 
           {/* Error Message */}
           {error && (
-            <div className="mx-8 mt-4 p-3 rounded-lg" style={{ 
+            <div className="mx-6 mt-3 p-2 rounded text-xs" style={{ 
               backgroundColor: '#FEE2E2',
               borderColor: '#FCA5A5',
-              borderWidth: '1px'
+              borderWidth: '1px',
+              color: '#DC2626'
             }}>
-              <p className="text-sm text-red-600">{error}</p>
+              {error}
               <button
                 onClick={() => setError('')}
-                className="text-xs text-red-500 hover:text-red-600 mt-1"
+                className="ml-2 text-red-500 hover:text-red-600"
               >
-                Dismiss
+                ×
               </button>
             </div>
           )}
 
-          {/* Main Content Area */}
-          <div className="flex-1 overflow-y-auto px-8 py-6">
+          {/* Professional Table */}
+          <div className="flex-1 overflow-auto">
             {loading ? (
-              <div className="text-center py-12">
-                <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4" style={{ color: 'var(--purple-primary)' }} />
-                <p style={{ color: 'var(--text-secondary)' }}>Loading calls...</p>
+              <div className="flex items-center justify-center h-full">
+                <Loader2 className="w-5 h-5 animate-spin" style={{ color: 'var(--purple-primary)' }} />
               </div>
             ) : calls.length === 0 ? (
-              <div className="text-center py-12">
-                <BarChart3 className="w-12 h-12 mx-auto mb-4" style={{ color: 'var(--text-tertiary)' }} />
-                <h3 className="text-lg font-semibold mb-2" style={{ color: 'var(--text-secondary)' }}>
-                  No calls found
-                </h3>
-                <p style={{ color: 'var(--text-tertiary)' }} className="text-sm">
-                  {filter === 'all' ? 'No trading calls in the system yet.' : 
-                   filter === 'open' ? 'No open positions.' : 
-                   'No closed positions.'}
+              <div className="flex flex-col items-center justify-center h-full">
+                <BarChart3 className="w-10 h-10 mb-3" style={{ color: 'var(--text-tertiary)' }} />
+                <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+                  No trading calls found
                 </p>
               </div>
             ) : (
-              <div className="space-y-4">
-                {calls.map((call) => {
-                  const pnl = calculatePnL(call);
-                  const holdingDays = calculateHoldingDays(call);
-                  const recColor = getRecommendationColor(call.recommendation);
-                  const earliestInsiderDate = getEarliestInsiderDate(call.transaction_dates);
+              <div className="px-6 py-4">
+                <table className="w-full" style={{ borderCollapse: 'separate', borderSpacing: '0' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid var(--border-primary)' }}>
+                      {(filter === 'top-winners' || filter === 'top-losers') && (
+                        <th className="text-left py-2 px-3 text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-secondary)' }}>
+                          #
+                        </th>
+                      )}
+                      <th className="text-left py-2 px-3 text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-secondary)' }}>
+                        Ticker
+                      </th>
+                      <th className="text-left py-2 px-3 text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-secondary)' }}>
+                        Company
+                      </th>
+                      <th className="text-left py-2 px-3 text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-secondary)' }}>
+                        Rec
+                      </th>
+                      <th className="text-right py-2 px-3 text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-secondary)' }}>
+                        Insider Entry
+                      </th>
+                      <th className="text-right py-2 px-3 text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-secondary)' }}>
+                        Our Entry
+                      </th>
+                      <th className="text-right py-2 px-3 text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-secondary)' }}>
+                        Current Price
+                      </th>
+                      <th className="text-right py-2 px-3 text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-secondary)' }}>
+                        P&L
+                      </th>
+                      <th className="text-right py-2 px-3 text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-secondary)' }}>
+                        Days
+                      </th>
+                      <th className="text-center py-2 px-3 text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-secondary)' }}>
+                        Details
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {calls.map((call, index) => {
+                      const pnl = calculatePnL(call);
+                      const holdingDays = getHoldingDays(call);
+                      const recColor = getRecommendationColor(call.recommendation);
+                      const rank = index + 1;
 
-                  return (
-                    <div
-                      key={call.id}
-                      className="rounded-lg border transition-all duration-200"
-                      style={{
-                        backgroundColor: 'var(--bg-secondary)',
-                        borderColor: 'var(--border-primary)',
-                      }}
-                    >
-                      {/* Main Row */}
-                      <div className="p-4">
-                        <div className="grid grid-cols-12 gap-4 items-center">
-                          {/* Ticker */}
-                          <div className="col-span-1">
-                            <div className="px-3 py-1 rounded-md font-black text-center tracking-wide" style={{ backgroundColor: 'var(--purple-primary)', color: '#ffffff', fontWeight: 900 }}>
+                      return (
+                        <tr
+                          key={call.id}
+                          className="hover:bg-opacity-50 transition-colors cursor-pointer"
+                          style={{ 
+                            borderBottom: '1px solid var(--border-primary)',
+                            backgroundColor: index % 2 === 0 ? 'transparent' : 'var(--bg-secondary)'
+                          }}
+                          onClick={() => openDetailsDialog(call)}
+                        >
+                          {(filter === 'top-winners' || filter === 'top-losers') && (
+                            <td className="py-2.5 px-3">
+                              <div className="flex items-center">
+                                <span 
+                                  className="text-xs font-bold w-5 h-5 rounded flex items-center justify-center"
+                                  style={{ 
+                                    backgroundColor: rank <= 3 ? 'var(--purple-primary)' : 'var(--bg-tertiary)',
+                                    color: rank <= 3 ? 'white' : 'var(--text-primary)'
+                                  }}
+                                >
+                                  {rank}
+                                </span>
+                              </div>
+                            </td>
+                          )}
+                          <td className="py-2.5 px-3">
+                            <span 
+                              className="text-xs font-bold px-2 py-0.5 rounded"
+                              style={{ 
+                                backgroundColor: 'var(--purple-primary)', 
+                                color: 'white',
+                                fontFamily: 'monospace'
+                              }}
+                            >
                               {call.ticker}
+                            </span>
+                          </td>
+                          <td className="py-2.5 px-3">
+                            <div className="text-xs font-medium" style={{ color: 'var(--text-primary)' }}>
+                              {call.company_name || '—'}
                             </div>
-                          </div>
-
-                          {/* Company */}
-                          <div className="col-span-2">
-                            <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
-                              {call.company_name}
+                          </td>
+                          <td className="py-2.5 px-3">
+                            <div className="flex flex-col gap-0.5">
+                              <span 
+                                className="text-xs font-bold px-1.5 py-0.5 rounded inline-block w-fit"
+                                style={{ backgroundColor: recColor.bg, color: recColor.text }}
+                              >
+                                {call.recommendation}
+                              </span>
+                              {call.signal_strength && (
+                                <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>
+                                  {call.signal_strength}/10
+                                </span>
+                              )}
                             </div>
-                          </div>
-
-                          {/* Recommendation */}
-                          <div className="col-span-1">
-                            <div className="px-2 py-1 rounded text-xs font-bold text-center" style={{ backgroundColor: recColor.bg, color: recColor.text }}>
-                              {call.recommendation}
+                          </td>
+                          <td className="py-2.5 px-3 text-right">
+                            <div className="text-xs font-mono font-semibold" style={{ color: 'var(--text-primary)' }}>
+                              {call.insider_avg_price ? `$${call.insider_avg_price.toFixed(2)}` : '—'}
                             </div>
-                            <div className="mt-1 text-xs text-center" style={{ color: 'var(--text-secondary)' }}>
-                              {call.signal_strength}/10
+                            <div className="text-xs" style={{ color: 'var(--text-tertiary)' }}>
+                              {call.transaction_dates && call.transaction_dates.length > 0 
+                                ? formatDate(call.transaction_dates.sort((a, b) => new Date(a).getTime() - new Date(b).getTime())[0])
+                                : '—'}
                             </div>
-                          </div>
-
-                          {/* Insider Info */}
-                          <div className="col-span-2">
-                            <div className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>
-                              {call.insider_avg_price ? `$${call.insider_avg_price.toFixed(2)}` : 'N/A'}
+                          </td>
+                          <td className="py-2.5 px-3 text-right">
+                            <div className="text-xs font-mono font-semibold" style={{ color: 'var(--text-primary)' }}>
+                              {call.entry_price ? `$${call.entry_price.toFixed(2)}` : '—'}
                             </div>
-                            <div className="text-xs" style={{ color: 'var(--text-secondary)' }}>
-                              {earliestInsiderDate}
+                            <div className="text-xs" style={{ color: 'var(--text-tertiary)' }}>
+                              {formatDate(call.entry_date)}
                             </div>
-                          </div>
-
-                          {/* My Entry */}
-                          <div className="col-span-2">
-                            <div className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>
-                              {call.entry_price ? `$${call.entry_price.toFixed(2)}` : 'N/A'}
-                            </div>
-                            <div className="text-xs" style={{ color: 'var(--text-secondary)' }}>
-                              {new Date(call.entry_date).toLocaleDateString()}
-                            </div>
-                          </div>
-
-                          {/* Current Price */}
-                          <div className="col-span-2">
-                            <div className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>
-                              {call.current_price ? `$${call.current_price.toFixed(2)}` : 'N/A'}
+                          </td>
+                          <td className="py-2.5 px-3 text-right">
+                            <div className="text-xs font-mono font-semibold" style={{ color: 'var(--text-primary)' }}>
+                              {call.current_price ? `$${call.current_price.toFixed(2)}` : '—'}
                             </div>
                             {call.last_price_update && (
-                              <div className="text-xs" style={{ color: 'var(--text-secondary)' }}>
-                                Updated: {new Date(call.last_price_update).toLocaleDateString()}
-                              </div>
-                            )}
-                          </div>
-
-                          {/* P&L */}
-                          <div className="col-span-1">
-                            {pnl !== null ? (
-                              <>
-                                <div className="text-sm font-bold" style={{ color: getPnLColor(pnl) }}>
-                                  {pnl >= 0 ? '+' : ''}{pnl.toFixed(2)}%
-                                </div>
-                                <div className="text-xs" style={{ color: 'var(--text-tertiary)' }}>
-                                  {holdingDays}d
-                                </div>
-                              </>
-                            ) : (
                               <div className="text-xs" style={{ color: 'var(--text-tertiary)' }}>
-                                No price
+                                {formatDate(call.last_price_update)}
                               </div>
                             )}
-                          </div>
-
-                          {/* Details Button */}
-                          <div className="col-span-1 text-right">
+                          </td>
+                          <td className="py-2.5 px-3 text-right">
+                            {pnl !== null ? (
+                              <div 
+                                className="text-xs font-mono font-bold"
+                                style={{ color: getPnLColor(pnl) }}
+                              >
+                                {pnl >= 0 ? '+' : ''}{pnl.toFixed(2)}%
+                              </div>
+                            ) : (
+                              <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>—</span>
+                            )}
+                          </td>
+                          <td className="py-2.5 px-3 text-right">
+                            {holdingDays !== null ? (
+                              <span className="text-xs font-mono" style={{ color: 'var(--text-secondary)' }}>
+                                {holdingDays}d
+                              </span>
+                            ) : (
+                              <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>—</span>
+                            )}
+                          </td>
+                          <td className="py-2.5 px-3 text-center">
                             <button
-                              onClick={() => openDetailsDialog(call)}
-                              className="px-3 py-1 rounded-md transition-colors duration-200 flex items-center gap-1"
-                              style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-primary)' }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openDetailsDialog(call);
+                              }}
+                              className="p-1 rounded hover:bg-opacity-80 transition-colors"
+                              style={{ backgroundColor: 'var(--bg-tertiary)' }}
                             >
-                              <Info className="w-4 h-4" />
-                              <span className="text-xs">View</span>
+                              <Info className="w-3.5 h-3.5" style={{ color: 'var(--text-secondary)' }} />
                             </button>
-                          </div>
-                        </div>
-
-                      </div>
-                    </div>
-                  );
-                })}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
             )}
           </div>
@@ -546,105 +463,108 @@ export default function InsiderDashboardPage() {
                   </Dialog.Close>
                 </div>
 
-                            <div className="grid grid-cols-2 gap-6">
-                              {/* Left Column */}
-                              <div className="space-y-4">
-                                <div>
-                                  <h4 className="text-sm font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>
-                                    LLM Rationale
-                                  </h4>
-                                  <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+                <div className="grid grid-cols-2 gap-6">
+                  <div className="space-y-4">
+                    <div>
+                      <h4 className="text-sm font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>
+                        LLM Rationale
+                      </h4>
+                      <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
                         {selectedCall.llm_rationale}
-                                  </p>
-                                </div>
+                      </p>
+                    </div>
 
-                                <div>
-                                  <h4 className="text-sm font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>
-                                    Transaction Details
-                                  </h4>
-                                  <div className="space-y-1 text-sm" style={{ color: 'var(--text-secondary)' }}>
+                    <div>
+                      <h4 className="text-sm font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>
+                        Transaction Details
+                      </h4>
+                      <div className="space-y-1 text-sm" style={{ color: 'var(--text-secondary)' }}>
                         <div><strong>Insiders:</strong> {selectedCall.number_of_insiders || 0}</div>
                         <div><strong>Total Value:</strong> ${selectedCall.total_transaction_value ? (selectedCall.total_transaction_value / 1000000).toFixed(2) : '0'}M</div>
                         <div><strong>Time Horizon:</strong> {selectedCall.time_horizon || 'N/A'}</div>
-                        <div><strong>Status:</strong> {selectedCall.status || 'N/A'}</div>
-                                  </div>
-                                </div>
-
-                                <div>
-                                  <h4 className="text-sm font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>
-                                    Insider Names
-                                  </h4>
-                                  <ul className="list-disc list-inside text-sm space-y-1" style={{ color: 'var(--text-secondary)' }}>
-                        {selectedCall.insider_names.map((name, idx) => (
-                                      <li key={idx}>{name}</li>
-                                    ))}
-                                  </ul>
-                                </div>
-                              </div>
-
-                              {/* Right Column */}
-                              <div className="space-y-4">
-                                <div>
-                                  <h4 className="text-sm font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>
-                                    Transaction Dates
-                                  </h4>
-                                  <ul className="list-disc list-inside text-sm space-y-1" style={{ color: 'var(--text-secondary)' }}>
-                        {selectedCall.transaction_dates.map((date, idx) => (
-                                      <li key={idx}>{new Date(date).toLocaleDateString()}</li>
-                                    ))}
-                                  </ul>
-                                </div>
-
-                                <div>
-                                  <h4 className="text-sm font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>
-                                    Insider Prices
-                                  </h4>
-                      {selectedCall.insider_prices_json.length > 0 ? (
-                                    <ul className="list-disc list-inside text-sm space-y-1" style={{ color: 'var(--text-secondary)' }}>
-                          {selectedCall.insider_prices_json.map((price, idx) => (
-                                        <li key={idx}>${price ? price.toFixed(2) : 'N/A'}</li>
-                                      ))}
-                                    </ul>
-                                  ) : (
-                                    <p className="text-sm" style={{ color: 'var(--text-tertiary)' }}>No prices recorded</p>
-                                  )}
-                                </div>
-
-                                <div>
-                                  <h4 className="text-sm font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>
-                                    Market Patterns
-                                  </h4>
-                      {selectedCall.market_patterns.length > 0 ? (
-                                    <ul className="list-disc list-inside text-sm space-y-1" style={{ color: 'var(--text-secondary)' }}>
-                          {selectedCall.market_patterns.map((pattern, idx) => (
-                                        <li key={idx}>{pattern}</li>
-                                      ))}
-                                    </ul>
-                                  ) : (
-                                    <p className="text-sm" style={{ color: 'var(--text-tertiary)' }}>No patterns recorded</p>
-                                  )}
-                                </div>
-
-                                <div>
-                                  <h4 className="text-sm font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>
-                                    Metadata
-                                  </h4>
-                                  <div className="space-y-1 text-xs" style={{ color: 'var(--text-tertiary)' }}>
-                        <div><strong>Batch ID:</strong> {selectedCall.batch_id}</div>
-                        <div><strong>Call Date:</strong> {new Date(selectedCall.call_date).toLocaleString()}</div>
-                        {selectedCall.last_price_update && (
-                          <div><strong>Price Updated:</strong> {new Date(selectedCall.last_price_update).toLocaleString()}</div>
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
+                        <div><strong>Traded:</strong> {selectedCall.traded ? 'Yes' : 'No'}</div>
+                        {selectedCall.rank && (
+                          <div><strong>Rank:</strong> {selectedCall.rank}</div>
                         )}
+                        {selectedCall.pnl_dollars !== null && selectedCall.pnl_dollars !== undefined && (
+                          <div><strong>P&L ($):</strong> ${selectedCall.pnl_dollars.toFixed(2)}</div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div>
+                      <h4 className="text-sm font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>
+                        Insider Names
+                      </h4>
+                      <ul className="list-disc list-inside text-sm space-y-1" style={{ color: 'var(--text-secondary)' }}>
+                        {selectedCall.insider_names.map((name, idx) => (
+                          <li key={idx}>{name}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div>
+                      <h4 className="text-sm font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>
+                        Transaction Dates
+                      </h4>
+                      <ul className="list-disc list-inside text-sm space-y-1" style={{ color: 'var(--text-secondary)' }}>
+                        {selectedCall.transaction_dates.map((date, idx) => (
+                          <li key={idx}>{formatDate(date)}</li>
+                        ))}
+                      </ul>
+                    </div>
+
+                    <div>
+                      <h4 className="text-sm font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>
+                        Insider Prices
+                      </h4>
+                      {selectedCall.insider_prices_json.length > 0 ? (
+                        <ul className="list-disc list-inside text-sm space-y-1" style={{ color: 'var(--text-secondary)' }}>
+                          {selectedCall.insider_prices_json.map((price, idx) => (
+                            <li key={idx}>${price ? price.toFixed(2) : 'N/A'}</li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="text-sm" style={{ color: 'var(--text-tertiary)' }}>No prices recorded</p>
+                      )}
+                    </div>
+
+                    <div>
+                      <h4 className="text-sm font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>
+                        Market Patterns
+                      </h4>
+                      {selectedCall.market_patterns.length > 0 ? (
+                        <ul className="list-disc list-inside text-sm space-y-1" style={{ color: 'var(--text-secondary)' }}>
+                          {selectedCall.market_patterns.map((pattern, idx) => (
+                            <li key={idx}>{pattern}</li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="text-sm" style={{ color: 'var(--text-tertiary)' }}>No patterns recorded</p>
+                      )}
+                    </div>
+
+                    <div>
+                      <h4 className="text-sm font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>
+                        Metadata
+                      </h4>
+                      <div className="space-y-1 text-xs" style={{ color: 'var(--text-tertiary)' }}>
+                        <div><strong>Batch ID:</strong> {selectedCall.batch_id}</div>
+                        <div><strong>Call Date:</strong> {formatDate(selectedCall.call_date)}</div>
+                        {selectedCall.last_price_update && (
+                          <div><strong>Price Updated:</strong> {formatDate(selectedCall.last_price_update)}</div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </Dialog.Content>
         </Dialog.Portal>
       </Dialog.Root>
     </div>
   );
 }
-
