@@ -522,7 +522,7 @@ export default function InsiderDashboardPage() {
                       </h4>
                       {selectedCall.insider_prices_json.length > 0 ? (
                         <ul className="list-disc list-inside text-sm space-y-1" style={{ color: 'var(--text-secondary)' }}>
-                          {selectedCall.insider_prices_json.map((price: number, idx: number) => (
+                          {selectedCall.insider_prices_json.map((price: number | null, idx: number) => (
                             <li key={idx}>${price ? price.toFixed(2) : 'N/A'}</li>
                           ))}
                         </ul>
