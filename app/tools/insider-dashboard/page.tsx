@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import ToolSidebar from '@/components/ToolSidebar';
 import { createClient } from '@/lib/supabase/client';
 import { LLMCall, ParsedLLMCall } from '@/types/insider';
-import { BarChart3, DollarSign, RefreshCw, Check, X, ChevronDown, ChevronUp, Info, TrendingUp, TrendingDown, Loader2 } from 'lucide-react';
+import { BarChart3, DollarSign, RefreshCw, Info, TrendingUp, TrendingDown, Loader2 } from 'lucide-react';
 import * as Dialog from '@radix-ui/react-dialog';
 import * as Tooltip from '@radix-ui/react-tooltip';
 
@@ -14,9 +14,6 @@ export default function InsiderDashboardPage() {
   const [filter, setFilter] = useState<'all' | 'open' | 'closed'>('open');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [editingPrice, setEditingPrice] = useState<number | null>(null);
-  const [priceInput, setPriceInput] = useState('');
-  const [updatingAllPrices, setUpdatingAllPrices] = useState(false);
   const [selectedCall, setSelectedCall] = useState<ParsedLLMCall | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
 
@@ -71,101 +68,6 @@ export default function InsiderDashboardPage() {
   const openDetailsDialog = (call: ParsedLLMCall) => {
     setSelectedCall(call);
     setDialogOpen(true);
-  };
-
-  const startEditingPrice = (id: number, currentPrice: number | null) => {
-    setEditingPrice(id);
-    setPriceInput(currentPrice?.toString() || '');
-  };
-
-  const updateCurrentPrice = async (id: number) => {
-    const price = parseFloat(priceInput);
-    if (isNaN(price) || price <= 0) {
-      setError('Please enter a valid price');
-      return;
-    }
-
-    try {
-      const { error } = await supabase
-        .from('llm_calls')
-        .update({
-          current_price: price,
-          last_price_update: new Date().toISOString(),
-        })
-        .eq('id', id);
-
-      if (error) throw error;
-
-      setEditingPrice(null);
-      setPriceInput('');
-      fetchCalls();
-    } catch (error: any) {
-      setError(error.message);
-      console.error('Error updating price:', error);
-    }
-  };
-
-  const updateAllPrices = async () => {
-    setUpdatingAllPrices(true);
-    setError('');
-
-    try {
-      // Get all open calls
-      const openCalls = calls.filter(c => !c.is_closed);
-      if (openCalls.length === 0) {
-        setError('No open positions to update');
-        return;
-      }
-
-      // Get unique tickers
-      const tickers = Array.from(new Set(openCalls.map(c => c.ticker)));
-
-      // Fetch prices from API
-      const response = await fetch('/api/stock-price', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ tickers }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch stock prices');
-      }
-
-      const { prices } = await response.json();
-
-      // Update database for each call
-      const timestamp = new Date().toISOString();
-      const updatePromises = openCalls.map(call => {
-        const price = prices[call.ticker];
-        if (price) {
-          return supabase
-            .from('llm_calls')
-            .update({
-              current_price: price,
-              last_price_update: timestamp,
-            })
-            .eq('id', call.id);
-        }
-        return null;
-      });
-
-      await Promise.all(updatePromises.filter(p => p !== null));
-
-      // Refresh data
-      await fetchCalls();
-      
-      // Show success message
-      const successCount = Object.values(prices).filter(p => p !== null).length;
-      setError('');
-      alert(`Successfully updated ${successCount} of ${tickers.length} stock prices`);
-    } catch (error: any) {
-      setError(error.message || 'Failed to update prices');
-      console.error('Error updating all prices:', error);
-    } finally {
-      setUpdatingAllPrices(false);
-    }
   };
 
   const calculatePnL = (call: ParsedLLMCall): number | null => {
@@ -231,9 +133,9 @@ export default function InsiderDashboardPage() {
           <div className="border-b px-8 py-6" style={{ borderColor: 'var(--border-primary)' }}>
             <div className="flex items-center gap-3">
               <BarChart3 className="w-8 h-8" style={{ color: 'var(--purple-primary)' }} />
-              <h1 className="text-3xl font-bold" style={{ color: 'var(--text-primary)' }}>
+            <h1 className="text-3xl font-bold" style={{ color: 'var(--text-primary)' }}>
                 Insider Trading Dashboard
-              </h1>
+            </h1>
             </div>
             
             {/* Stats Cards */}
@@ -242,11 +144,11 @@ export default function InsiderDashboardPage() {
                 <Tooltip.Root>
                   <Tooltip.Trigger asChild>
                     <div className="rounded-lg p-4 cursor-help" style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-primary)', borderWidth: '1px' }}>
-                      <div className="flex items-center gap-2">
-                        <span className="text-2xl font-bold text-purple">{activeCalls}</span>
-                        <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>Active Calls</span>
-                      </div>
-                    </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-2xl font-bold text-purple">{activeCalls}</span>
+                  <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>Active Calls</span>
+                </div>
+              </div>
                   </Tooltip.Trigger>
                   <Tooltip.Portal>
                     <Tooltip.Content
@@ -269,18 +171,18 @@ export default function InsiderDashboardPage() {
                 <Tooltip.Root>
                   <Tooltip.Trigger asChild>
                     <div className="rounded-lg p-4 cursor-help" style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-primary)', borderWidth: '1px' }}>
-                      <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2">
                         {avgPnL >= 0 ? (
                           <TrendingUp className="w-5 h-5" style={{ color: '#10B981' }} />
                         ) : (
                           <TrendingDown className="w-5 h-5" style={{ color: '#EF4444' }} />
                         )}
-                        <span className="text-2xl font-bold" style={{ color: avgPnL >= 0 ? '#10B981' : '#EF4444' }}>
-                          {avgPnL >= 0 ? '+' : ''}{avgPnL.toFixed(2)}%
-                        </span>
-                        <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>Avg P&L</span>
-                      </div>
-                    </div>
+                  <span className="text-2xl font-bold" style={{ color: avgPnL >= 0 ? '#10B981' : '#EF4444' }}>
+                    {avgPnL >= 0 ? '+' : ''}{avgPnL.toFixed(2)}%
+                  </span>
+                  <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>Avg P&L</span>
+                </div>
+              </div>
                   </Tooltip.Trigger>
                   <Tooltip.Portal>
                     <Tooltip.Content
@@ -303,14 +205,14 @@ export default function InsiderDashboardPage() {
                 <Tooltip.Root>
                   <Tooltip.Trigger asChild>
                     <div className="rounded-lg p-4 cursor-help" style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-primary)', borderWidth: '1px' }}>
-                      <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2">
                         <DollarSign className="w-5 h-5 text-purple" />
-                        <span className="text-2xl font-bold text-purple">
-                          ${(totalValue / 1000000).toFixed(2)}M
-                        </span>
-                        <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>Total Value</span>
-                      </div>
-                    </div>
+                  <span className="text-2xl font-bold text-purple">
+                    ${(totalValue / 1000000).toFixed(2)}M
+                  </span>
+                  <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>Total Value</span>
+                </div>
+              </div>
                   </Tooltip.Trigger>
                   <Tooltip.Portal>
                     <Tooltip.Content
@@ -333,11 +235,11 @@ export default function InsiderDashboardPage() {
                 <Tooltip.Root>
                   <Tooltip.Trigger asChild>
                     <div className="rounded-lg p-4 cursor-help" style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-primary)', borderWidth: '1px' }}>
-                      <div className="flex items-center gap-2">
-                        <span className="text-2xl font-bold text-purple">{strongBuyCount}</span>
-                        <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>Strong Buy</span>
-                      </div>
-                    </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-2xl font-bold text-purple">{strongBuyCount}</span>
+                  <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>Strong Buy</span>
+                </div>
+              </div>
                   </Tooltip.Trigger>
                   <Tooltip.Portal>
                     <Tooltip.Content
@@ -379,45 +281,6 @@ export default function InsiderDashboardPage() {
               ))}
             </div>
             <div className="flex gap-2">
-              <Tooltip.Provider>
-                <Tooltip.Root>
-                  <Tooltip.Trigger asChild>
-                    <button
-                      onClick={updateAllPrices}
-                      disabled={updatingAllPrices}
-                      className="px-4 py-1.5 rounded-md text-sm font-medium transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                      style={{ backgroundColor: 'var(--purple-primary)', color: 'white' }}
-                    >
-                      {updatingAllPrices ? (
-                        <>
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                          Updating...
-                        </>
-                      ) : (
-                        <>
-                          <DollarSign className="w-4 h-4" />
-                          Update All Prices
-                        </>
-                      )}
-                    </button>
-                  </Tooltip.Trigger>
-                  <Tooltip.Portal>
-                    <Tooltip.Content
-                      className="rounded-md px-3 py-2 text-sm shadow-lg"
-                      style={{ 
-                        backgroundColor: 'var(--bg-tertiary)',
-                        color: 'var(--text-primary)',
-                        border: '1px solid var(--border-primary)'
-                      }}
-                      sideOffset={5}
-                    >
-                      Fetch latest stock prices for all open positions
-                      <Tooltip.Arrow style={{ fill: 'var(--bg-tertiary)' }} />
-                    </Tooltip.Content>
-                  </Tooltip.Portal>
-                </Tooltip.Root>
-              </Tooltip.Provider>
-              
               <Tooltip.Provider>
                 <Tooltip.Root>
                   <Tooltip.Trigger asChild>
@@ -602,49 +465,13 @@ export default function InsiderDashboardPage() {
 
                           {/* Current Price */}
                           <div className="col-span-2">
-                            {editingPrice === call.id ? (
-                              <div className="flex gap-1">
-                                <input
-                                  type="number"
-                                  step="0.01"
-                                  value={priceInput}
-                                  onChange={(e) => setPriceInput(e.target.value)}
-                                  className="w-20 px-2 py-1 text-sm rounded border"
-                                  style={{ 
-                                    backgroundColor: 'var(--bg-primary)',
-                                    borderColor: 'var(--border-primary)',
-                                    color: 'var(--text-primary)'
-                                  }}
-                                  autoFocus
-                                />
-                                <button
-                                  onClick={() => updateCurrentPrice(call.id)}
-                                  className="px-2 py-1 text-xs rounded flex items-center justify-center"
-                                  style={{ backgroundColor: 'var(--purple-primary)', color: 'white' }}
-                                >
-                                  <Check className="w-3 h-3" />
-                                </button>
-                                <button
-                                  onClick={() => setEditingPrice(null)}
-                                  className="px-2 py-1 text-xs rounded flex items-center justify-center"
-                                  style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }}
-                                >
-                                  <X className="w-3 h-3" />
-                                </button>
+                            <div className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>
+                              {call.current_price ? `$${call.current_price.toFixed(2)}` : 'N/A'}
+                            </div>
+                            {call.last_price_update && (
+                              <div className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+                                Updated: {new Date(call.last_price_update).toLocaleDateString()}
                               </div>
-                            ) : (
-                              <>
-                                <div className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>
-                                  {call.current_price ? `$${call.current_price.toFixed(2)}` : 'N/A'}
-                                </div>
-                                <button
-                                  onClick={() => startEditingPrice(call.id, call.current_price)}
-                                  className="text-xs hover:opacity-80"
-                                  style={{ color: 'var(--purple-primary)' }}
-                                >
-                                  Update
-                                </button>
-                              </>
                             )}
                           </div>
 
@@ -719,101 +546,101 @@ export default function InsiderDashboardPage() {
                   </Dialog.Close>
                 </div>
 
-                <div className="grid grid-cols-2 gap-6">
-                  {/* Left Column */}
-                  <div className="space-y-4">
-                    <div>
-                      <h4 className="text-sm font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>
-                        LLM Rationale
-                      </h4>
-                      <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+                            <div className="grid grid-cols-2 gap-6">
+                              {/* Left Column */}
+                              <div className="space-y-4">
+                                <div>
+                                  <h4 className="text-sm font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>
+                                    LLM Rationale
+                                  </h4>
+                                  <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
                         {selectedCall.llm_rationale}
-                      </p>
-                    </div>
+                                  </p>
+                                </div>
 
-                    <div>
-                      <h4 className="text-sm font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>
-                        Transaction Details
-                      </h4>
-                      <div className="space-y-1 text-sm" style={{ color: 'var(--text-secondary)' }}>
+                                <div>
+                                  <h4 className="text-sm font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>
+                                    Transaction Details
+                                  </h4>
+                                  <div className="space-y-1 text-sm" style={{ color: 'var(--text-secondary)' }}>
                         <div><strong>Insiders:</strong> {selectedCall.number_of_insiders || 0}</div>
                         <div><strong>Total Value:</strong> ${selectedCall.total_transaction_value ? (selectedCall.total_transaction_value / 1000000).toFixed(2) : '0'}M</div>
                         <div><strong>Time Horizon:</strong> {selectedCall.time_horizon || 'N/A'}</div>
                         <div><strong>Status:</strong> {selectedCall.status || 'N/A'}</div>
-                      </div>
-                    </div>
+                                  </div>
+                                </div>
 
-                    <div>
-                      <h4 className="text-sm font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>
-                        Insider Names
-                      </h4>
-                      <ul className="list-disc list-inside text-sm space-y-1" style={{ color: 'var(--text-secondary)' }}>
+                                <div>
+                                  <h4 className="text-sm font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>
+                                    Insider Names
+                                  </h4>
+                                  <ul className="list-disc list-inside text-sm space-y-1" style={{ color: 'var(--text-secondary)' }}>
                         {selectedCall.insider_names.map((name, idx) => (
-                          <li key={idx}>{name}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  </div>
+                                      <li key={idx}>{name}</li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              </div>
 
-                  {/* Right Column */}
-                  <div className="space-y-4">
-                    <div>
-                      <h4 className="text-sm font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>
-                        Transaction Dates
-                      </h4>
-                      <ul className="list-disc list-inside text-sm space-y-1" style={{ color: 'var(--text-secondary)' }}>
+                              {/* Right Column */}
+                              <div className="space-y-4">
+                                <div>
+                                  <h4 className="text-sm font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>
+                                    Transaction Dates
+                                  </h4>
+                                  <ul className="list-disc list-inside text-sm space-y-1" style={{ color: 'var(--text-secondary)' }}>
                         {selectedCall.transaction_dates.map((date, idx) => (
-                          <li key={idx}>{new Date(date).toLocaleDateString()}</li>
-                        ))}
-                      </ul>
-                    </div>
+                                      <li key={idx}>{new Date(date).toLocaleDateString()}</li>
+                                    ))}
+                                  </ul>
+                                </div>
 
-                    <div>
-                      <h4 className="text-sm font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>
-                        Insider Prices
-                      </h4>
+                                <div>
+                                  <h4 className="text-sm font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>
+                                    Insider Prices
+                                  </h4>
                       {selectedCall.insider_prices_json.length > 0 ? (
-                        <ul className="list-disc list-inside text-sm space-y-1" style={{ color: 'var(--text-secondary)' }}>
+                                    <ul className="list-disc list-inside text-sm space-y-1" style={{ color: 'var(--text-secondary)' }}>
                           {selectedCall.insider_prices_json.map((price, idx) => (
-                            <li key={idx}>${price ? price.toFixed(2) : 'N/A'}</li>
-                          ))}
-                        </ul>
-                      ) : (
-                        <p className="text-sm" style={{ color: 'var(--text-tertiary)' }}>No prices recorded</p>
-                      )}
-                    </div>
+                                        <li key={idx}>${price ? price.toFixed(2) : 'N/A'}</li>
+                                      ))}
+                                    </ul>
+                                  ) : (
+                                    <p className="text-sm" style={{ color: 'var(--text-tertiary)' }}>No prices recorded</p>
+                                  )}
+                                </div>
 
-                    <div>
-                      <h4 className="text-sm font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>
-                        Market Patterns
-                      </h4>
+                                <div>
+                                  <h4 className="text-sm font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>
+                                    Market Patterns
+                                  </h4>
                       {selectedCall.market_patterns.length > 0 ? (
-                        <ul className="list-disc list-inside text-sm space-y-1" style={{ color: 'var(--text-secondary)' }}>
+                                    <ul className="list-disc list-inside text-sm space-y-1" style={{ color: 'var(--text-secondary)' }}>
                           {selectedCall.market_patterns.map((pattern, idx) => (
-                            <li key={idx}>{pattern}</li>
-                          ))}
-                        </ul>
-                      ) : (
-                        <p className="text-sm" style={{ color: 'var(--text-tertiary)' }}>No patterns recorded</p>
-                      )}
-                    </div>
+                                        <li key={idx}>{pattern}</li>
+                                      ))}
+                                    </ul>
+                                  ) : (
+                                    <p className="text-sm" style={{ color: 'var(--text-tertiary)' }}>No patterns recorded</p>
+                                  )}
+                                </div>
 
-                    <div>
-                      <h4 className="text-sm font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>
-                        Metadata
-                      </h4>
-                      <div className="space-y-1 text-xs" style={{ color: 'var(--text-tertiary)' }}>
+                                <div>
+                                  <h4 className="text-sm font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>
+                                    Metadata
+                                  </h4>
+                                  <div className="space-y-1 text-xs" style={{ color: 'var(--text-tertiary)' }}>
                         <div><strong>Batch ID:</strong> {selectedCall.batch_id}</div>
                         <div><strong>Call Date:</strong> {new Date(selectedCall.call_date).toLocaleString()}</div>
                         {selectedCall.last_price_update && (
                           <div><strong>Price Updated:</strong> {new Date(selectedCall.last_price_update).toLocaleString()}</div>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
                         )}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
           </Dialog.Content>
         </Dialog.Portal>
       </Dialog.Root>
