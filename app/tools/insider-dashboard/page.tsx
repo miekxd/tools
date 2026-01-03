@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import ToolSidebar from '@/components/ToolSidebar';
 import { createClient } from '@/lib/supabase/client';
 import { LLMCall, ParsedLLMCall } from '@/types/insider';
-import { BarChart3, DollarSign, RefreshCw, Info, TrendingUp, TrendingDown, Loader2 } from 'lucide-react';
+import { BarChart3, DollarSign, RefreshCw, Info, TrendingUp, TrendingDown, Loader2, X } from 'lucide-react';
 import * as Dialog from '@radix-ui/react-dialog';
 import * as Tooltip from '@radix-ui/react-tooltip';
 
